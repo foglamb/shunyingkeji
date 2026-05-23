@@ -1,0 +1,69 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.operit.yingkeji.adhelper"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <application
+11-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:4:5-33:19
+12        android:allowBackup="true"
+12-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:5:9-35
+13        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+13-->[androidx.core:core:1.1.0] /root/.gradle/caches/transforms-3/984663ba480cc744c219908044f4bd3f/transformed/core-1.1.0/AndroidManifest.xml:24:18-86
+14        android:extractNativeLibs="false"
+15        android:label="瞬影科技刷量助手"
+15-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:6:9-33
+16        android:supportsRtl="true" >
+16-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:7:9-35
+17        <activity
+17-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:9:9-16:20
+18            android:name="com.operit.yingkeji.adhelper.MainActivity"
+18-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:10:13-41
+19            android:exported="true" >
+19-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:11:13-36
+20            <intent-filter>
+20-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:12:13-15:29
+21                <action android:name="android.intent.action.MAIN" />
+21-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:13:17-69
+21-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:13:25-66
+22
+23                <category android:name="android.intent.category.LAUNCHER" />
+23-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:14:17-77
+23-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:14:27-74
+24            </intent-filter>
+25        </activity>
+26
+27        <service
+27-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:18:9-21:56
+28            android:name="com.operit.yingkeji.adhelper.AdTaskService"
+28-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:19:13-42
+29            android:exported="false"
+29-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:20:13-37
+30            android:foregroundServiceType="dataSync" />
+30-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:21:13-53
+31
+32        <meta-data
+32-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:23:9-25:36
+33            android:name="xposedmodule"
+33-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:24:13-40
+34            android:value="true" />
+34-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:25:13-33
+35        <meta-data
+35-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:26:9-28:65
+36            android:name="xposeddescription"
+36-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:27:13-45
+37            android:value="瞬影科技_4.1.0.77 广告刷量助手 - 自动刷金币/广告任务" />
+37-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:28:13-62
+38        <meta-data
+38-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:29:9-31:34
+39            android:name="xposedminversion"
+39-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:30:13-44
+40            android:value="82" />
+40-->/tmp/yingkeji_build/YingkejiAdHelper/app/src/main/AndroidManifest.xml:31:13-31
+41    </application>
+42
+43</manifest>
