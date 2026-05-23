@@ -8,7 +8,7 @@ buildscript {
         google()
         mavenCentral()
         jcenter()
-        maven { url = "https://api.xposed.info" }
+        maven { url = uri("https://api.xposed.info") }
     }
 }
 
@@ -17,6 +17,6 @@ allprojects {
         google()
         mavenCentral()
         jcenter()
-        maven { url = "https://api.xposed.info" }
+        maven { url = uri("https://api.xposed.info") }
     }
 }
