@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.*
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -252,14 +253,14 @@ class AdTaskService : Service() {
                 .header("x-sig", sig)
                 .header("User-Agent", "okhttp/4.10.0")
                 .method(method, if (method == "POST" && body != null) {
-                    RequestBody.create(MediaType.parse("application/x-www-form-urlencoded"), body)
+                    RequestBody.create("application/x-www-form-urlencoded".toMediaType(), body)
                 } else null)
             
             val response = client.newCall(requestBuilder.build()).execute()
-            val responseBody = response.body()?.string() ?: ""
+            val responseBody = response.body?.string() ?: ""
             
             return HttpResponse(
-                status = response.code(),
+                status = response.code,
                 body = responseBody,
                 error = null
             )
@@ -411,7 +412,7 @@ class AdTaskService : Service() {
                 val placementId = if (placementIds.isNotEmpty()) {
                     placementIds[Random().nextInt(placementIds.size)]
                 } else {
-                    (1000000000000000L + Random().nextLong(8999999999999999L)).toString()
+                    (1000000000000000L + Math.abs(Random().nextLong()) % 8999999999999999L).toString()
                 }
                 val networkId = VALID_NETWORK_IDS[Random().nextInt(VALID_NETWORK_IDS.size)]
                 val loadId = UUID.randomUUID().toString()
@@ -484,7 +485,7 @@ class AdTaskService : Service() {
                 }
 
                 // 随机延迟20-30秒
-                val delay = MIN_DELAY_MS + Random().nextLong(MAX_DELAY_MS - MIN_DELAY_MS + 1)
+                val delay = MIN_DELAY_MS + Math.abs(Random().nextLong()) % (MAX_DELAY_MS - MIN_DELAY_MS + 1)
                 delay(delay)
             }
 
@@ -510,7 +511,7 @@ class AdTaskService : Service() {
         for ((index, account) in accounts.withIndex()) {
             runAccount(account, index)
             // 账号之间延迟3-8秒
-            delay(3000 + Random().nextLong(5001))
+            delay(3000 + Math.abs(Random().nextLong()) % 5001)
         }
         
         Log.i(TAG, "所有账号执行完毕")
