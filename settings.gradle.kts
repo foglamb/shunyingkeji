@@ -10,7 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://api.xposed.info") }
     }
 }
-rootProject.name = "YingkejiAdHelper"
+rootProject.name = "YingkjeiAdHelper"
 include(":app")
