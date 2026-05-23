@@ -1,0 +1,4 @@
+-keep class com.operit.yingkeji.adhelper.** { *; }
+-keep class de.robv.android.xposed.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
