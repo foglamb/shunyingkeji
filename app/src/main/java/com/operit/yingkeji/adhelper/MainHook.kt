@@ -1,68 +1,158 @@
 package com.operit.yingkeji.adhelper
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
-import de.robv.android.xposed.*
+import de.robv.android.xposed.IXposedHookLoadPackage
+import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
 class MainHook : IXposedHookLoadPackage {
 
     companion object {
-        private const val TAG = "Yingkeji-Hook"
-        private const val PKG = "com.yxrjshun.yingkeji"
+        private const val TAG = "YingkejiAdHelper-Hook"
+        private const val TARGET_PACKAGE = "com.yxrjshun.yingkeji"
+        private const val MODULE_PACKAGE = "com.operit.yingkeji.adhelper"
     }
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        if (lpparam.packageName != PKG) return
+        // 只在目标应用（瞬影科技）中Hook
+        if (lpparam.packageName != TARGET_PACKAGE) return
         
-        Log.i(TAG, "[*] 瞬影科技刷量模块加载成功")
-
-        // 代理启动刷量
-        hookAppStart(lpparam)
-
-        // 扫描API类
-        scanApiClasses(lpparam)
-    }
-
-    private fun hookAppStart(lpparam: XC_LoadPackage.LoadPackageParam) {
+        Log.i(TAG, "已加载到目标应用: ${lpparam.packageName}")
+        
         try {
-            val appCls = lpparam.classLoader.loadClass("android.app.Application")
-            XposedHelpers.findAndHookMethod(appCls, "onCreate", object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val ctx = param.thisObject as android.app.Application
-                    Log.i(TAG, "[*] 应用启动，启动刷量服务")
-                    try {
-                        ctx.startForegroundService(android.content.Intent(ctx, AdTaskService::class.java))
-                    } catch (e: Exception) {
-                        Log.e(TAG, "启动Service失败: ${e.message}")
-                    }
-                }
-            })
-        } catch (e: Throwable) {
-            Log.e(TAG, "Hook失败: ${e.message}")
+            // 方案1: Hook OkHttp的Request.Builder.addHeader方法
+            // 当瞬影科技应用发送HTTP请求时，拦截header中的token/oaid/deviceid
+            hookOkHttpHeaders(lpparam)
+        } catch (e: Exception) {
+            Log.e(TAG, "Hook OkHttp失败: ${e.message}")
+        }
+        
+        try {
+            // 方案2: 通过ClassLoader搜索可能存放token的类
+            hookTokenStorage(lpparam)
+        } catch (e: Exception) {
+            Log.e(TAG, "Hook TokenStorage失败: ${e.message}")
         }
     }
 
-    private fun scanApiClasses(lpparam: XC_LoadPackage.LoadPackageParam) {
-        val cl = lpparam.classLoader
-        val apis = listOf(
-            "$PKG.api.ApiService",
-            "$PKG.data.api.ApiService",
-            "$PKG.data.remote.ApiService",
-            "$PKG.net.ApiService",
-            "$PKG.network.Api",
-            "$PKG.utils.HttpUtils",
-            "$PKG.net.HttpManager",
-            "$PKG.utils.SignUtils",
-            "$PKG.security.JWT"
-        )
-        for (name in apis) {
-            try {
-                val c = cl.loadClass(name)
-                Log.i(TAG, "[+] 找到: $name")
-                for (m in c.declaredMethods) {
-                    Log.d(TAG, "   方法: ${m.name}(${m.parameterTypes.joinToString { it.simpleName }})")
+    private fun hookOkHttpHeaders(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val classLoader = lpparam.classLoader
+        
+        try {
+            // Hook OkHttp的Request.Builder
+            val builderClass = classLoader.loadClass("okhttp3.Request\$Builder")
+            
+            XposedHelpers.findAndHookMethod(builderClass, "addHeader", String::class.java, String::class.java, object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val name = param.args[0] as? String ?: return
+                    val value = param.args[1] as? String ?: return
+                    
+                    // 捕获关键参数
+                    when (name.lowercase()) {
+                        "token" -> saveAutoParam("auto_token", value)
+                        "oaid" -> saveAutoParam("auto_oaid", value)
+                        "deviceid" -> saveAutoParam("auto_deviceid", value)
+                    }
                 }
-            } catch (_: Throwable) { }
+            })
+            
+            Log.i(TAG, "✅ Hook OkHttp Request.Builder.addHeader 成功")
+        } catch (e: Exception) {
+            Log.e(TAG, "Hook OkHttp Request.Builder失败: ${e.message}")
+        }
+        
+        try {
+            // 也尝试Hook OkHttp的Request.Builder.setHeader
+            val builderClass = classLoader.loadClass("okhttp3.Request\$Builder")
+            XposedHelpers.findAndHookMethod(builderClass, "setHeader", String::class.java, String::class.java, object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val name = param.args[0] as? String ?: return
+                    val value = param.args[1] as? String ?: return
+                    
+                    when (name.lowercase()) {
+                        "token" -> saveAutoParam("auto_token", value)
+                        "oaid" -> saveAutoParam("auto_oaid", value)
+                        "deviceid" -> saveAutoParam("auto_deviceid", value)
+                    }
+                }
+            })
+            
+            Log.i(TAG, "✅ Hook OkHttp Request.Builder.setHeader 成功")
+        } catch (e: Exception) {
+            Log.e(TAG, "Hook OkHttp Request.Builder.setHeader失败: ${e.message}")
+        }
+    }
+
+    private fun hookTokenStorage(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val classLoader = lpparam.classLoader
+        
+        // 尝试常见的类名和字段名来捕获token/oaid/deviceid
+        val possibleClasses = listOf(
+            "com.yxrjshun.yingkeji.network.ApiClient",
+            "com.yxrjshun.yingkeji.network.HttpClient",
+            "com.yxrjshun.yingkeji.data.UserManager",
+            "com.yxrjshun.yingkeji.data.AccountManager",
+            "com.yxrjshun.yingkeji.utils.DeviceUtils"
+        )
+        
+        for (className in possibleClasses) {
+            try {
+                val clazz = classLoader.loadClass(className)
+                Log.i(TAG, "找到类: $className")
+                
+                // 尝试Hook所有public方法，捕获返回token/oaid/deviceid的方法
+                for (method in clazz.methods) {
+                    val methodName = method.name.lowercase()
+                    
+                    if (methodName.contains("token") || methodName.contains("auth") || 
+                        methodName.contains("login") || methodName.contains("init")) {
+                        
+                        if (method.parameterTypes.isEmpty()) {
+                            val returnType = method.returnType
+                            if (returnType == String::class.java) {
+                                XposedHelpers.findAndHookMethod(clazz, method.name, object : XC_MethodHook() {
+                                    override fun afterHookedMethod(param: MethodHookParam) {
+                                        val result = param.result as? String ?: return
+                                        if (result.length > 10 && !result.contains(" ")) {
+                                            if (methodName.contains("token")) {
+                                                saveAutoParam("auto_token", result)
+                                                Log.i(TAG, "自动捕获Token: ${result.take(16)}...")
+                                            }
+                                        }
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    private fun saveAutoParam(key: String, value: String) {
+        if (value.length < 10) return // 太短的不保存
+        
+        try {
+            // 通过模块的Context获取SharedPreferences
+            val context = XposedHelpers.callStaticMethod(
+                XposedHelpers.findClass("android.app.ActivityThread", null),
+                "currentApplication"
+            ) as? Context ?: return
+            
+            val prefs = context.createPackageContext(MODULE_PACKAGE, 0)
+                .getSharedPreferences("ad_helper_config", Context.MODE_PRIVATE)
+            
+            // 只在有意义的参数时才保存
+            val existing = prefs.getString(key, "") ?: ""
+            if (existing != value) {
+                prefs.edit().putString(key, value).apply()
+                Log.i(TAG, "💾 已保存自动捕获参数: $key = ${value.take(16)}...")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "保存自动捕获参数失败: ${e.message}")
         }
     }
 }

@@ -1,1 +1,2 @@
-trigger rebuild Sat May 23 11:46:03 UTC 2026
+Sat May 23 12:18:05 UTC 2026
+v2.0 - 可配置参数+自动捕获

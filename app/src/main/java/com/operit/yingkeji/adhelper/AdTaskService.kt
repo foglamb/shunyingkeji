@@ -16,10 +16,6 @@ import java.util.*
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * 自动广告刷量后台服务
- * 完全模拟Python脚本的刷量逻辑
- */
 class AdTaskService : Service() {
 
     companion object {
@@ -27,27 +23,27 @@ class AdTaskService : Service() {
         private const val CHANNEL_ID = "ad_task_channel"
         private const val NOTIFICATION_ID = 1001
         
-        // ====== 固定常量（从Python脚本提取） ======
+        // ====== 固定常量 ======
         private const val JWT_KEY = "059f0570a479a317932f175e9321c274"
         private const val DEVICE_SHA = "FA552E62ED750596E7F157BAEEE66F75BAB29D26"
         private const val DOMAIN = "1526xin.yingkeji.cc"
         private const val VERSION = "1077"
         private const val DIVIDENDS = "4"
         private val VALID_NETWORK_IDS = listOf("3", "4", "16", "18", "19", "40")
-        private const val LOOP_COUNT = 2000
-        private const val MIN_DELAY_MS = 20000L  // 20秒
-        private const val MAX_DELAY_MS = 30000L  // 30秒
-        private const val STOP_GOLD = 8000
         private const val X_CH = "64131e7a9286cfea"
     }
 
     private val job = Job()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     
-    // 多账号配置（通过SharedPreferences存储）
     private var accounts = mutableListOf<AccountInfo>()
     
-    // OkHttp客户端
+    // 可配置参数（从SharedPreferences读取）
+    private var stopGold = 8000
+    private var loopCount = 2000
+    private var minDelayMs = 20000L
+    private var maxDelayMs = 30000L
+    
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -70,8 +66,16 @@ class AdTaskService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "收到启动命令，开始刷量任务")
         
-        // 读取账号信息
-        loadAccounts()
+        // 读取自定义参数
+        loadConfig()
+        
+        // 读取自动捕获的参数（如果手动账号为空，使用自动捕获的）
+        val prefs = getSharedPreferences("ad_helper_config", MODE_PRIVATE)
+        val autoToken = prefs.getString("auto_token", "") ?: ""
+        val autoOaid = prefs.getString("auto_oaid", "") ?: ""
+        val autoDeviceId = prefs.getString("auto_deviceid", "") ?: ""
+        
+        loadAccounts(autoToken, autoOaid, autoDeviceId)
         
         if (accounts.isEmpty()) {
             Log.w(TAG, "没有配置账号，使用默认测试账号")
@@ -82,7 +86,9 @@ class AdTaskService : Service() {
             ))
         }
         
-        // 启动刷量任务
+        // 发送状态给面板
+        sendStatusToUI()
+        
         scope.launch {
             runAllAccounts()
         }
@@ -97,11 +103,17 @@ class AdTaskService : Service() {
         super.onDestroy()
     }
 
-    /**
-     * 加载账号配置
-     * 通过SharedPreferences读取
-     */
-    private fun loadAccounts() {
+    private fun loadConfig() {
+        val prefs = getSharedPreferences("ad_helper_config", MODE_PRIVATE)
+        stopGold = prefs.getInt("max_gold", 8000)
+        loopCount = prefs.getInt("max_rounds", 2000)
+        minDelayMs = (prefs.getInt("min_delay", 20) * 1000L).coerceAtLeast(5000L) // 最少5秒
+        maxDelayMs = (prefs.getInt("max_delay", 30) * 1000L).coerceAtLeast(minDelayMs + 1000)
+        
+        Log.i(TAG, "配置参数: 金币上限=$stopGold, 轮次上限=$loopCount, 延迟=${minDelayMs/1000}-${maxDelayMs/1000}秒")
+    }
+
+    private fun loadAccounts(autoToken: String, autoOaid: String, autoDeviceId: String) {
         val prefs = getSharedPreferences("ad_helper_config", Context.MODE_PRIVATE)
         val raw = prefs.getString("accounts", "") ?: ""
         
@@ -118,53 +130,54 @@ class AdTaskService : Service() {
             }
         }
         
+        // 如果手动账号为空，尝试使用自动捕获的参数
+        if (accounts.isEmpty() && autoToken.isNotEmpty()) {
+            accounts.add(AccountInfo(token = autoToken, oaid = autoOaid, deviceId = autoDeviceId))
+            Log.i(TAG, "使用自动捕获的账号: ${autoToken.take(16)}...")
+        }
+        
         Log.i(TAG, "已加载 ${accounts.size} 个账号")
     }
 
-    /**
-     * 创建通知渠道
-     */
+    private fun sendStatusToUI() {
+        try {
+            val statusStr = if (accounts.isNotEmpty()) {
+                val acc = accounts[0]
+                "1|0|0|${acc.token.take(12)}|$stopGold|$loopCount"
+            } else {
+                "0|0|0|-|$stopGold|$loopCount"
+            }
+            sendBroadcast(Intent("com.operit.yingkeji.adhelper.STATUS").apply {
+                putExtra("status_data", statusStr)
+            })
+        } catch (_: Exception) {}
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                "刷量任务",
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, "刷量任务", NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
     }
 
-    /**
-     * 创建通知
-     */
     private fun createNotification(content: String): Notification {
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("瞬影科技刷量助手")
             .setContentText(content)
-            .setSmallIcon(android.R.drawable.ic_menu_manage)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            builder.setSmallIcon(android.R.drawable.ic_dialog_info)
-        }
-        
         return builder.build()
     }
 
-    // ==================== 以下完全模拟Python脚本的刷量逻辑 ====================
+    // ==================== 刷量核心逻辑 ====================
 
-    /**
-     * Base64 URL-safe编码（同Python的base64url_encode）
-     */
     private fun base64UrlEncode(data: ByteArray): String {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(data)
     }
 
-    /**
-     * 创建JWT（同Python的create_jwt）
-     */
     private fun createJwt(payload: String, secret: String): String {
         val header = JSONObject().apply {
             put("alg", "HS256")
@@ -172,39 +185,27 @@ class AdTaskService : Service() {
         }.toString()
         
         val headerB64 = base64UrlEncode(header.toByteArray())
-        
         val payloadB64 = base64UrlEncode(
             JSONObject().apply { put("sub", payload) }.toString().toByteArray()
         )
         
         val mac = Mac.getInstance("HmacSHA256")
-        val keySpec = SecretKeySpec(secret.toByteArray(), "HmacSHA256")
-        mac.init(keySpec)
+        mac.init(SecretKeySpec(secret.toByteArray(), "HmacSHA256"))
         val signature = mac.doFinal("$headerB64.$payloadB64".toByteArray())
         
         return "$headerB64.$payloadB64.${base64UrlEncode(signature)}"
     }
 
-    /**
-     * MD5（同Python的md5_hex）
-     */
     private fun md5Hex(s: String): String {
         val digest = MessageDigest.getInstance("MD5")
-        val bytes = digest.digest(s.toByteArray())
-        return bytes.joinToString("") { String.format("%02x", it) }
+        return digest.digest(s.toByteArray()).joinToString("") { String.format("%02x", it) }
     }
 
-    /**
-     * 随机后缀（同Python的random_suffix）
-     */
     private fun randomSuffix(n: Int): String {
         val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
         return (1..n).map { chars[Random().nextInt(chars.length)] }.joinToString("")
     }
 
-    /**
-     * HTTP请求（同Python的http_request）
-     */
     private data class HttpResponse(
         val status: Int,
         val body: String,
@@ -218,28 +219,21 @@ class AdTaskService : Service() {
         body: String? = null
     ): HttpResponse {
         try {
-            val ts = (System.currentTimeMillis()).toString()
-            // nc = random 100000-999999
+            val ts = System.currentTimeMillis().toString()
             val nc = (100000 + Random().nextInt(900000)).toString()
             val tick = (System.currentTimeMillis() / 60000).toString()
             val rnd = randomSuffix(6)
-            
-            // sig = md5(token + ts + nc + '/' + path)[8:24]
             val sig = md5Hex(token + ts + nc + "/" + path).substring(8, 24)
-            
-            // tokena = create_jwt(token, JWT_KEY)
             val tokena = createJwt(token, JWT_KEY)
-            
-            // sha = create_jwt(DEVICE_SHA, JWT_KEY)
             val sha = createJwt(DEVICE_SHA, JWT_KEY)
-            
+
             val urlBuilder = HttpUrl.Builder()
                 .scheme("https")
                 .host(DOMAIN)
                 .addPathSegments(path)
                 .addQueryParameter("_rnd", rnd)
                 .addQueryParameter("_tick", tick)
-            
+
             val requestBuilder = Request.Builder()
                 .url(urlBuilder.build())
                 .header("Host", DOMAIN)
@@ -255,23 +249,17 @@ class AdTaskService : Service() {
                 .method(method, if (method == "POST" && body != null) {
                     RequestBody.create("application/x-www-form-urlencoded".toMediaType(), body)
                 } else null)
-            
+
             val response = client.newCall(requestBuilder.build()).execute()
             val responseBody = response.body?.string() ?: ""
             
-            return HttpResponse(
-                status = response.code,
-                body = responseBody,
-                error = null
-            )
+            return HttpResponse(status = response.code, body = responseBody, error = null)
         } catch (e: Exception) {
+            Log.w(TAG, "HTTP请求失败: ${e.message}")
             return HttpResponse(status = 0, body = "", error = e.message)
         }
     }
 
-    /**
-     * 获取广告配置（同Python的fetch_ad_config）
-     */
     private data class AdConfig(
         val adTypes: MutableMap<String, AdTypeInfo>,
         val placementIds: MutableList<String>,
@@ -355,50 +343,58 @@ class AdTaskService : Service() {
         return AdConfig(adTypes, placementIds, availableTypes)
     }
 
-    /**
-     * 运行单个账号的刷量逻辑（同Python的run_account）
-     */
     private suspend fun runAccount(account: AccountInfo, accIndex: Int) {
         withContext(Dispatchers.IO) {
-            Log.i(TAG, "[账号${accIndex + 1}] 开始刷量")
+            Log.i(TAG, "[账号${accIndex + 1}] 开始刷量 (上限: ${stopGold}金币, ${loopCount}轮)")
+            Log.i(TAG, "[账号${accIndex + 1}] Token: ${account.token.take(16)}...")
             
             val config = fetchAdConfig(account.token)
             var adTypes = config.adTypes
             var placementIds = config.placementIds
             var availableTypes = config.availableTypes.toMutableList()
-            
+
             var roundNum = 0
             var lastGold = 0
-            
-            while (roundNum < LOOP_COUNT) {
+
+            while (roundNum < loopCount) {
                 roundNum++
-                
+
                 // 获取用户信息
                 val userInfoResp = httpRequest(account.token, "GET", "api/Member/Guserinfo")
                 if (userInfoResp.error != null) {
+                    Log.w(TAG, "[账号${accIndex + 1}] 获取用户信息失败: ${userInfoResp.error}")
                     delay(5000)
                     continue
                 }
-                
+
                 val gold: Int
                 try {
                     val userData = JSONObject(userInfoResp.body)
                     val userinfo = userData.optJSONObject("data")?.optJSONObject("userinfo")
                     gold = userinfo?.optInt("forecast_gold", 0) ?: 0
                 } catch (e: Exception) {
+                    Log.w(TAG, "[账号${accIndex + 1}] 解析用户信息失败: ${e.message}")
                     delay(5000)
                     continue
                 }
-                
+
                 val delta = if (lastGold > 0) gold - lastGold else 0
                 lastGold = gold
-                
-                if (gold >= STOP_GOLD) {
-                    Log.i(TAG, "[账号${accIndex + 1}] ✅ 已满 $STOP_GOLD 金币，停止")
-                    updateNotification("[账号${accIndex + 1}] 金币已满 $STOP_GOLD")
+
+                // 发送状态到UI
+                try {
+                    val statusStr = "1|$gold|$roundNum|${account.token.take(12)}|$stopGold|$loopCount"
+                    sendBroadcast(Intent("com.operit.yingkeji.adhelper.STATUS").apply {
+                        putExtra("status_data", statusStr)
+                    })
+                } catch (_: Exception) {}
+
+                if (gold >= stopGold) {
+                    Log.i(TAG, "[账号${accIndex + 1}] ✅ 已满 $stopGold 金币，停止")
+                    updateNotification("[账号${accIndex + 1}] 金币已满 $stopGold")
                     break
                 }
-                
+
                 if (availableTypes.isEmpty()) {
                     val newConfig = fetchAdConfig(account.token)
                     adTypes = newConfig.adTypes
@@ -406,7 +402,7 @@ class AdTaskService : Service() {
                     availableTypes = newConfig.availableTypes.toMutableList()
                     if (availableTypes.isEmpty()) break
                 }
-                
+
                 val adType = availableTypes[Random().nextInt(availableTypes.size)]
                 val typeInfo = adTypes[adType] ?: AdTypeInfo("type$adType", 30, 0)
                 val placementId = if (placementIds.isNotEmpty()) {
@@ -435,7 +431,6 @@ class AdTaskService : Service() {
 
                 val sgin = createJwt(adParams.toString(), JWT_KEY)
 
-                // 构建请求body
                 val bodyParams = JSONObject()
                 bodyParams.put("placementId", placementId)
                 bodyParams.put("networkPlacementId", placementId)
@@ -453,7 +448,6 @@ class AdTaskService : Service() {
                 bodyParams.put("ta", createJwt("AOterUrl", JWT_KEY))
                 bodyParams.put("tb", sgin)
 
-                // 构建URL-encoded body
                 val bodyStr = buildUrlEncodedString(bodyParams)
 
                 // 发送广告请求
@@ -484,8 +478,8 @@ class AdTaskService : Service() {
                     availableTypes = newConfig.availableTypes.toMutableList()
                 }
 
-                // 随机延迟20-30秒
-                val delay = MIN_DELAY_MS + Math.abs(Random().nextLong()) % (MAX_DELAY_MS - MIN_DELAY_MS + 1)
+                // 随机延迟（使用用户配置）
+                val delay = minDelayMs + Math.abs(Random().nextLong()) % (maxDelayMs - minDelayMs + 1)
                 delay(delay)
             }
 
@@ -493,25 +487,20 @@ class AdTaskService : Service() {
         }
     }
 
-    /**
-     * 构建URL编码的请求体
-     */
     private fun buildUrlEncodedString(params: JSONObject): String {
         return params.keys().asSequence().map { key ->
             key + "=" + java.net.URLEncoder.encode(params.getString(key), "UTF-8")
         }.joinToString("&")
     }
 
-    /**
-     * 运行所有账号
-     */
     private suspend fun runAllAccounts() {
         Log.i(TAG, "开始执行 ${accounts.size} 个账号的刷量任务")
         
         for ((index, account) in accounts.withIndex()) {
             runAccount(account, index)
-            // 账号之间延迟3-8秒
-            delay(3000 + Math.abs(Random().nextLong()) % 5001)
+            if (index < accounts.size - 1) {
+                delay(3000 + Math.abs(Random().nextLong()) % 5001)
+            }
         }
         
         Log.i(TAG, "所有账号执行完毕")
@@ -519,12 +508,11 @@ class AdTaskService : Service() {
         stopSelf()
     }
 
-    /**
-     * 更新通知
-     */
     private fun updateNotification(content: String) {
-        val notification = createNotification(content)
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
+        try {
+            val notification = createNotification(content)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (_: Exception) {}
     }
 }
