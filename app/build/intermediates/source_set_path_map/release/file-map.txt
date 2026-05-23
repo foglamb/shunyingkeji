@@ -1,0 +1,10 @@
+com.operit.yingkeji.adhelper.app-appcompat-resources-1.1.0-0 /root/.gradle/caches/transforms-3/174322ffa5fff5c9f573bc2889813e29/transformed/appcompat-resources-1.1.0/res
+com.operit.yingkeji.adhelper.app-appcompat-1.1.0-1 /root/.gradle/caches/transforms-3/340dac230c4104e31466a118b4d8afba/transformed/appcompat-1.1.0/res
+com.operit.yingkeji.adhelper.app-core-1.1.0-2 /root/.gradle/caches/transforms-3/984663ba480cc744c219908044f4bd3f/transformed/core-1.1.0/res
+com.operit.yingkeji.adhelper.app-pngs-3 /tmp/yingkeji_build/YingkejiAdHelper/app/build/generated/res/pngs/release
+com.operit.yingkeji.adhelper.app-resValues-4 /tmp/yingkeji_build/YingkejiAdHelper/app/build/generated/res/resValues/release
+com.operit.yingkeji.adhelper.app-packageReleaseResources-5 /tmp/yingkeji_build/YingkejiAdHelper/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
+com.operit.yingkeji.adhelper.app-packageReleaseResources-6 /tmp/yingkeji_build/YingkejiAdHelper/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
+com.operit.yingkeji.adhelper.app-merged_res-7 /tmp/yingkeji_build/YingkejiAdHelper/app/build/intermediates/merged_res/release
+com.operit.yingkeji.adhelper.app-main-8 /tmp/yingkeji_build/YingkejiAdHelper/app/src/main/res
+com.operit.yingkeji.adhelper.app-release-9 /tmp/yingkeji_build/YingkejiAdHelper/app/src/release/res
