@@ -6,10 +6,12 @@ pluginManagement {
     }
 }
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
+        jcenter()
+        maven { url = uri("https://api.xposed.info") }
     }
 }
 rootProject.name = "YingkejiAdHelper"
