@@ -67,9 +67,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ContextCompat.registerReceiver(this, receiver,
-            IntentFilter().apply { addAction(ACTION_LOG); addAction(ACTION_STATUS) },
-            ContextCompat.RECEIVER_NOT_EXPORTED)
+        val filter = IntentFilter()
+        filter.addAction(ACTION_LOG)
+        filter.addAction(ACTION_STATUS)
+        registerReceiver(receiver, filter)
         buildUI()
         loadConfig()
     }
